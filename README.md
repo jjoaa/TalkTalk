@@ -20,7 +20,7 @@
 
 ## 2. 기술스택
 
-<img src ="https://img.shields.io/badge/C_sharp-003545.svg?&style=for-the-badge&logo=Csharp&logoColor=brown"/>  <br /><br /> <br />
+<img src ="https://img.shields.io/badge/C_sharp-1572B6.svg?&style=for-the-badge&logo=Csharp&logoColor=Blue"/>  <br /><br /> <br />
 
 ---
 
