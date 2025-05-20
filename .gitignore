@@ -2,45 +2,23 @@
 bin/
 obj/
 
-# 사용자 환경 설정 파일
+# 사용자 환경 설정
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
 
-# Visual Studio 관련 폴더
+# Visual Studio 관련
 .vs/
 
-# 기타 캐시 및 로그
+# 로그, 캐시
 *.log
 *.cache
-*.dbmdl
 
-# 리샘플 및 백업 파일
-*.bak
-*.orig
+# 기타
 *.tmp
+*.bak
 
-# NuGet 패키지
-*.nupkg
-packages/
-project.lock.json
-project.fragment.lock.json
-
-# 환경 설정
-*.DotSettings.user
-
-# Resharper
-_ReSharper*/
-*.[Rr]e[Ss]harper
-*.DotSettings
-
-# Rider
-.idea/
-
-# Windows 자동 생성 파일
-Thumbs.db
-Desktop.ini
-
-# Mac/Linux
+# OS별
 .DS_Store
+Thumbs.db
