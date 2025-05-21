@@ -1,33 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Net;
-using System.Net.Sockets;
+using System;
 using System.IO;
+using System.Net.Sockets;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace TCPClient1
 {
     public partial class Form1 : Form
     {
-        TcpClient Client; //클라이언트 소켓
-
-        NetworkStream Stream;//네트워크 연결 스트림
-        StreamReader Reader;
-        StreamWriter Writer;
-
-        Thread receiveThread;
-
-        bool Connected;
-
-        private delegate void AddTextDelegate(string strText);
-
+        private TcpClient client;
+        private NetworkStream stream;
+        private StreamReader reader;
+        private StreamWriter writer;
+        private Thread receiveThread;
+        private bool connected;
 
         public Form1()
         {
@@ -36,48 +22,110 @@ namespace TCPClient1
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            string IP = "127.0.0.1";
-            int port = 8000;
+            try
+            {
+                string ip = "127.0.0.1";
+                int port = 8000;
 
-            Client = new TcpClient();
-            Client.Connect(IP, port);
+                client = new TcpClient();
+                client.Connect(ip, port);
 
-            Stream = Client.GetStream();
-            Connected = true;
+                stream = client.GetStream();
+                reader = new StreamReader(stream);
+                writer = new StreamWriter(stream);
+                connected = true;
 
-            txtView.AppendText("서버에 접속 성공!!" + Environment.NewLine);
+                AppendText("서버에 접속 성공!"+ Environment.NewLine);
 
-            Reader = new StreamReader(Stream);
-            Writer = new StreamWriter(Stream);
-
-            //수신을 위한 스레드
-            ThreadStart ts = new ThreadStart(Receive);
-            Thread rcvthread = new Thread(ts);
-            rcvthread.Start();
+                receiveThread = new Thread(Receive);
+                receiveThread.IsBackground = true;
+                receiveThread.Start();
+            }
+            catch (Exception ex)
+            {
+                AppendText("서버 연결 실패: " + ex.Message + Environment.NewLine);
+            }
         }
 
         private void Receive()
         {
-            AddTextDelegate AddText = new AddTextDelegate(txtView.AppendText);
-            while (Connected)
+            try
             {
-                if (Stream.CanRead)
-                { 
-                    string tempStr = Reader.ReadLine();
-                    if (tempStr.Length > 0)
+                while (connected)
+                {
+                    if (stream.CanRead)
                     {
-                        Invoke(AddText, "상대방 : " + tempStr + Environment.NewLine);
+                        string message = reader.ReadLine();
+                        if (!string.IsNullOrEmpty(message))
+                        {
+                            AppendText("상대방: " + message + Environment.NewLine);
+                        }
                     }
                 }
+            }
+            catch (IOException ex)
+            {
+                AppendText("수신 오류: " + ex.Message + Environment.NewLine);
+            }
+            finally
+            {
+                CloseConnection();
             }
         }
 
         private void btnSend_Click_1(object sender, EventArgs e)
         {
-            txtView.AppendText("나 : " + txtInput.Text + Environment.NewLine);
-            Writer.WriteLine(txtInput.Text); // 보내기
-            Writer.Flush();
-            txtInput.Clear();
+            if (writer != null && connected)
+            {
+                string message = txtInput.Text.Trim();
+                if (!string.IsNullOrEmpty(message))
+                {
+                    AppendText("나: " + message + Environment.NewLine);
+
+                    try
+                    {
+                        writer.WriteLine(message);
+                        writer.Flush();
+                    }
+                    catch (IOException ex)
+                    {
+                        AppendText("전송 오류: " + ex.Message + Environment.NewLine);
+                    }
+                }
+                txtInput.Clear();
+            }
+        }
+
+        private void AppendText(string text)
+        {
+            if (txtView.InvokeRequired)
+            {
+                txtView.Invoke(new Action<string>(AppendText), text);
+            }
+            else
+            {
+                txtView.AppendText(text);
+            }
+        }
+
+        private void CloseConnection()
+        {
+            connected = false;
+            try
+            {
+                reader?.Close();
+                writer?.Close();
+                stream?.Close();
+                client?.Close();
+                receiveThread?.Join(500); // 최대 500ms 대기
+            }
+            catch { }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            CloseConnection();
+            base.OnFormClosing(e);
         }
     }
 }
