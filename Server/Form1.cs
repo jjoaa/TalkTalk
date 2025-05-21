@@ -1,97 +1,141 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
+using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.IO;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace TCPServer1
 {
     public partial class Form1 : Form
     {
-        TcpListener Server; //서버 소켓
-        TcpClient Client;   //클라이언트 소켓
+        private TcpListener server;
+        private TcpClient client;
+        private NetworkStream stream;
+        private StreamReader reader;
+        private StreamWriter writer;
+        private Thread listenThread;
+        private Thread receiveThread;
+        private bool connected;
 
-        NetworkStream Stream;
-        StreamReader Reader;
-        StreamWriter Writer;
-
-        Thread receiveThread;
-
-        bool Conntected;
-
-        private delegate void AddTextDelegate(string strText);
         public Form1()
         {
             InitializeComponent();
         }
 
-        private void btnSend_Click(object sender, EventArgs e)
+        private void Form1_Load_1(object sender, EventArgs e)
         {
-            txtView.AppendText("나 : " + txtInput.Text + Environment.NewLine);
-            Writer.WriteLine(txtInput.Text);//보내기
-            Writer.Flush();
-            txtInput.Clear();
+            listenThread = new Thread(Listen);
+            listenThread.IsBackground = true;
+            listenThread.Start();
         }
-
 
         private void Listen()
         {
-            AddTextDelegate AddText = new AddTextDelegate(txtView.AppendText);
+            try
+            {
+                AppendText("서버 시작"+ Environment.NewLine);
 
-            //소켓 생성
-            IPAddress addr = new IPAddress(0);
-            int port = 8000;
+                server = new TcpListener(IPAddress.Any, 8000);
+                server.Start();
 
-            Server = new TcpListener(addr, port); //생성 및 바인딩
-            Server.Start();//서버시작
+                client = server.AcceptTcpClient();
+                connected = true;
 
-            Invoke(AddText, "서버 시작" + Environment.NewLine);
+                AppendText("클라이언트와 연결됨"+ Environment.NewLine);
 
-            Client = Server.AcceptTcpClient();
+                stream = client.GetStream();
+                reader = new StreamReader(stream);
+                writer = new StreamWriter(stream);
 
-            Conntected = true;
-
-            Invoke(AddText, "클라이언트와 연결" + Environment.NewLine);
-
-            Stream = Client.GetStream();
-            Reader = new StreamReader(Stream);
-            Writer = new StreamWriter(Stream);
-
-            //수신을 위한 스레드
-            ThreadStart ts = new ThreadStart(Receive);
-            Thread rcvthread = new Thread(ts);
-            rcvthread.Start();
+                receiveThread = new Thread(Receive);
+                receiveThread.IsBackground = true;
+                receiveThread.Start();
+            }
+            catch (Exception ex)
+            {
+                AppendText("서버 오류: " + ex.Message + Environment.NewLine);
+            }
         }
 
         private void Receive()
         {
-            AddTextDelegate AddText = new AddTextDelegate(txtView.AppendText);
-            while (Conntected)
+            try
             {
-                if (Stream.CanRead)
+                while (connected)
                 {
-                    string temp = Reader.ReadLine();
-                    if (temp.Length > 0)
+                    if (stream.CanRead)
                     {
-                        Invoke(AddText, "상대방 : " + temp + Environment.NewLine);
+                        string message = reader.ReadLine();
+                        if (!string.IsNullOrEmpty(message))
+                        {
+                            AppendText("상대방: " + message + Environment.NewLine);
+                        }
                     }
                 }
             }
+            catch (IOException ex)
+            {
+                AppendText("수신 오류: " + ex.Message + Environment.NewLine);
+            }
+            finally
+            {
+                CloseConnection();
+            }
         }
 
-        private void Form1_Load_1(object sender, EventArgs e)
+        private void btnSend_Click(object sender, EventArgs e)
         {
-            ThreadStart ts = new ThreadStart(Listen);
-            Thread thread = new Thread(ts);
-            thread.Start();
+            if (writer != null && connected)
+            {
+                string message = txtInput.Text.Trim();
+                if (!string.IsNullOrEmpty(message))
+                {
+                    AppendText("나: " + message + Environment.NewLine);
+                    try
+                    {
+                        writer.WriteLine(message);
+                        writer.Flush();
+                    }
+                    catch (IOException ex)
+                    {
+                        AppendText("전송 오류: " + ex.Message + Environment.NewLine);
+                    }
+                }
+                txtInput.Clear();
+            }
+        }
+
+        private void AppendText(string text)
+        {
+            if (txtView.InvokeRequired)
+            {
+                txtView.Invoke(new Action<string>(AppendText), text);
+            }
+            else
+            {
+                txtView.AppendText(text);
+            }
+        }
+
+        private void CloseConnection()
+        {
+            connected = false;
+            try
+            {
+                reader?.Close();
+                writer?.Close();
+                stream?.Close();
+                client?.Close();
+                receiveThread?.Join(500); // 최대 500ms 대기
+            }
+            catch { }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            CloseConnection();
+            base.OnFormClosing(e);
         }
     }
 }
